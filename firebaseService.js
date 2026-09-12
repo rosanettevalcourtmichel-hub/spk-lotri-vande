@@ -26,21 +26,35 @@ const db = getFirestore(app);
 
 export const login = async (username, pin) => {
   try {
-    const q = query(collection(db, "agents"), where("username", "==", username), where("pin", "==", pin));
-    const snapshot = await getDocs(q);
+    const fieldSets = [
+      { usernameField: "username", pinField: "pin" },
+      { usernameField: "agentName", pinField: "agentCode" },
+      { usernameField: "name", pinField: "code" },
+      { usernameField: "nom", pinField: "kode" },
+    ];
 
-    if (snapshot.empty) {
-      return { ok: false, message: "Non ajan oswa kòd pa kòrèk." };
+    for (const { usernameField, pinField } of fieldSets) {
+      const q = query(
+        collection(db, "agents"),
+        where(usernameField, "==", username),
+        where(pinField, "==", pin)
+      );
+
+      const snapshot = await getDocs(q);
+
+      if (!snapshot.empty) {
+        const user = snapshot.docs[0].data();
+        return {
+          ok: true,
+          user: {
+            uid: snapshot.docs[0].id,
+            ...user,
+          },
+        };
+      }
     }
 
-    const user = snapshot.docs[0].data();
-    return {
-      ok: true,
-      user: {
-        uid: snapshot.docs[0].id,
-        ...user,
-      },
-    };
+    return { ok: false, message: "Non ajan oswa kòd ajan pa kòrèk." };
   } catch (error) {
     return { ok: false, message: "Login pa t ka fèt. Verifye koneksyon an." };
   }

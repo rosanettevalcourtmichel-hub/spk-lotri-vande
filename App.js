@@ -422,7 +422,7 @@ function Login({ onLogin }) {
 
   const submit = async () => {
     if (!username.trim() || !pin.trim()) {
-      Alert.alert("Login", "Mete non ajan ak kòd la.");
+      Alert.alert("Login", "Mete non ajan ak kòd ajan.");
       return;
     }
 
@@ -447,10 +447,10 @@ function Login({ onLogin }) {
       </View>
       <Text style={styles.eyebrow}>SPK LOTRI / VANDÈ</Text>
       <Text style={styles.hero}>Bonjou.</Text>
-      <Text style={styles.subtitle}>Antre kòd ou pou kòmanse pran fich.</Text>
+      <Text style={styles.subtitle}>Antre non ajan ak kòd ajan pou kòmanse pran fich.</Text>
       <View style={styles.panel}>
-        <Field label="Non ajan" value={username} onChangeText={setUsername} placeholder="username" />
-        <Field label="Kòd" value={pin} onChangeText={setPin} placeholder="PIN" secureTextEntry />
+        <Field label="Non ajan" value={username} onChangeText={setUsername} placeholder="Non ajan" />
+        <Field label="Kòd ajan" value={pin} onChangeText={setPin} placeholder="Kòd ajan" secureTextEntry />
         <Button label={busy ? "Ap verifye..." : "Antre"} onPress={submit} disabled={busy} />
       </View>
     </SafeAreaView>
@@ -1078,11 +1078,11 @@ const styles = StyleSheet.create({
   button: { minHeight: 46, paddingHorizontal: 16, borderRadius: 8, alignItems: "center", justifyContent: "center", marginTop: 10 },
   buttonCompact: { minHeight: 38, paddingHorizontal: 12, marginTop: 0 },
   button_primary: { backgroundColor: "#1d4f8f" },
-  button_secondary: { backgroundColor: "#1d4f8f" },
-  button_ghost: { backgroundColor: "#1d4f8f", borderWidth: 0 },
+  button_secondary: { backgroundColor: "#eaf2ff", borderWidth: 1, borderColor: "#1d4f8f" },
+  button_ghost: { backgroundColor: "transparent", borderWidth: 1, borderColor: "#1d4f8f" },
   button_danger: { backgroundColor: "#b83d46" },
   buttonText: { color: "#fff", fontWeight: "800" },
-  buttonAltText: { color: "#ffffff" },
+  buttonAltText: { color: "#1d4f8f", fontWeight: "800" },
   disabled: { opacity: 0.45 },
   pressed: { opacity: 0.75 },
   field: { marginBottom: 14 },

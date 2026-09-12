@@ -7,9 +7,9 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:506106084726:android:018a03344c811b3fc50e57",
+        "mobilesdk_app_id": "1:506106084726:android:ed6a2eeefc2edcdac50e57",
         "android_client_info": {
-          "package_name": "com.spklotri.vande"
+          "package_name": "com.spklotri"
         }
       },
       "oauth_client": [],

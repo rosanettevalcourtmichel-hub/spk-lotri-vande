@@ -3,17 +3,37 @@
     "name": "SPK Lotri Vande",
     "slug": "spk-lotri-vande",
     "version": "1.0.0",
+    "icon": "./assets/icon.png",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
-    "plugins": ["expo-camera", "expo-image-picker"],
-    "android": {
-      "package": "com.spklotri.vande",
-      "icon": "./assets/icon.png",
-      "permissions": [
-        "CAMERA",
-        "READ_EXTERNAL_STORAGE",
-        "WRITE_EXTERNAL_STORAGE"
+    "plugins": [
+      "expo-camera",
+      "expo-image-picker",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 34,
+            "targetSdkVersion": 34,
+            "minSdkVersion": 24
+          }
+        }
       ]
+    ],
+    "android": {
+      "package": "com.spklotri",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.RECORD_AUDIO"
+      ]
+    },
+    "owner": "lotri-vande",
+    "extra": {
+      "eas": {
+        "projectId": "39cf2b41-4d40-4826-8a94-b0bf16df9d3b"
+      }
     }
   }
 }
