@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "506106084726",
+    "project_id": "spk-lotri",
+    "storage_bucket": "spk-lotri.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:506106084726:android:018a03344c811b3fc50e57",
+        "android_client_info": {
+          "package_name": "com.spklotri.vande"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDMtp193g_XAOOflrh4YBJyTWT6AtX-IEs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

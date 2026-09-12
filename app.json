@@ -1,0 +1,19 @@
+{
+  "expo": {
+    "name": "SPK Lotri Vande",
+    "slug": "spk-lotri-vande",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "plugins": ["expo-camera", "expo-image-picker"],
+    "android": {
+      "package": "com.spklotri.vande",
+      "icon": "./assets/icon.png",
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE"
+      ]
+    }
+  }
+}
