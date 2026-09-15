@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -6,6 +6,7 @@ import {
   KeyboardAvoidingView,
   Modal,
   Platform,
+  PermissionsAndroid,
   Pressable,
   SafeAreaView,
   ScrollView,
@@ -45,7 +46,7 @@ import {
   getAgentStatus,
   updateAgentPresence,
 } from "./firebaseService";
-import { printTicket } from "./printerService";
+import { getPrinterDevices, printTicket } from "./printerService";
 
 const SESSION_KEY = "@spk-lotri-vande/session";
 const PRINTER_KEY = "@spk-lotri-vande/printer-config";
@@ -61,7 +62,43 @@ const DEFAULT_TICKET_LAYOUT = {
 const money = (value) => `G ${Number(value || 0).toFixed(0)}`;
 const today = () => new Date().toISOString().slice(0, 10);
 
+const BOULE_OPTIONS = ["11", "22", "33", "44", "55", "66", "77", "88", "99", "00"];
+const LOTO3_GRAP_OPTIONS = ["111", "222", "333", "444", "555", "666", "777", "888", "999", "000"];
+
+const getConfiguredLimit = (limitsConfig, draw, game, option, agentUid) => {
+  if (!limitsConfig || typeof limitsConfig !== "object") return null;
+
+  const candidates = [
+    limitsConfig?.general?.[game]?.[draw]?.[option],
+    limitsConfig?.general?.[draw]?.[option],
+    limitsConfig?.draws?.[draw]?.[option],
+    limitsConfig?.draws?.[draw]?.[game]?.[option],
+    limitsConfig?.agents?.[agentUid]?.[game]?.[draw]?.[option],
+    limitsConfig?.agents?.[agentUid]?.[draw]?.[option],
+    limitsConfig?.[game]?.[draw]?.[option],
+    limitsConfig?.[draw]?.[option],
+    limitsConfig?.[game]?.[option],
+  ];
+
+  const limit = candidates.find((value) => value !== undefined && value !== null && value !== "");
+  return limit === undefined || limit === null || limit === "" ? null : Number(limit);
+};
+
 const optionLabels = ["Opsyon 1", "Opsyon 2", "Opsyon 3"];
+
+const buildEntryNumbers = (digits, reverseMode, game) => {
+  const normalized = String(digits || "").replace(/\D/g, "");
+  if (!normalized) return [];
+
+  const numbers = new Set([normalized]);
+
+  if (reverseMode) {
+    const reversed = normalized.split("").reverse().join("");
+    if (reversed && reversed !== normalized) numbers.add(reversed);
+  }
+
+  return Array.from(numbers);
+};
 
 function App() {
   const [ready, setReady] = useState(false);
@@ -71,6 +108,7 @@ function App() {
   const [tickets, setTickets] = useState([]);
   const [transactions, setTransactions] = useState([]);
   const [results, setResults] = useState([]);
+  const [limits, setLimits] = useState({});
   const [draw, setDraw] = useState(DRAWS[0] || "");
   const [game, setGame] = useState(GAME_TYPES[0]?.label || "");
   const [option, setOption] = useState("");
@@ -94,7 +132,7 @@ function App() {
           setSession(JSON.parse(storedSession));
         }
 
-        setPrinterConfigured(Boolean(savedPrinter));
+        setPrinterConfigured(Boolean(savedPrinter && JSON.parse(savedPrinter)?.address));
         if (savedLayout) {
           setTicketLayout({ ...DEFAULT_TICKET_LAYOUT, ...JSON.parse(savedLayout) });
         }
@@ -112,16 +150,18 @@ function App() {
     let active = true;
     const loadData = async () => {
       try {
-        const [ticketsRes, txRes, resultsRes] = await Promise.all([
+        const [ticketsRes, txRes, resultsRes, limitsRes] = await Promise.all([
           getTickets(session.uid),
           getTransactions(session.uid),
           getResults(),
+          getLimits(),
         ]);
 
         if (!active) return;
         setTickets(ticketsRes || []);
         setTransactions(txRes || []);
         setResults(resultsRes || []);
+        setLimits(limitsRes || {});
       } catch (error) {
         console.warn("loadData", error);
       }
@@ -183,6 +223,38 @@ function App() {
     await AsyncStorage.setItem(TICKET_LAYOUT_KEY, JSON.stringify(layout));
     setScreen(null);
     Alert.alert("Paramèt", "Tèt ak anba fich la anrejistre.");
+  };
+
+  const printReport = async ({ startDate, endDate, salesTotal, commission, paid, profit }) => {
+    try {
+      const printed = await printTicket({
+        ticketNumber: `report-${Date.now()}`,
+        agent: session.username,
+        director: session.director,
+        draw: "Rapò",
+        entries: [],
+        total: salesTotal,
+        ticketSettings: ticketLayout,
+        report: {
+          title: "Rapò",
+          startDate,
+          endDate,
+          salesTotal,
+          commission,
+          paid,
+          profit,
+        },
+      });
+
+      Alert.alert(
+        printed ? "Rapò enprime" : "Rapò anrejistre",
+        printed
+          ? "Rapò a enprime avèk dat ak kantite yo."
+          : "Rapò la anrejistre nan istorik la. Printer la pa disponib kounye a."
+      );
+    } catch (error) {
+      Alert.alert("Rapò", "Rapò la pa t ka enprime. Printer la pa disponib kounye a.");
+    }
   };
 
   const print = async () => {
@@ -323,6 +395,7 @@ function App() {
         setOption={setOption}
         price={price}
         setPrice={setPrice}
+        limits={limits}
         onPrint={print}
         onMenu={() => setMenuVisible(true)}
       />
@@ -347,6 +420,7 @@ function App() {
         tickets={tickets}
         transactions={transactions}
         session={session}
+        onPrintReport={printReport}
         onClose={() => setScreen(null)}
       />
 
@@ -459,10 +533,47 @@ function Login({ onLogin }) {
 
 function PrinterSetup({ onComplete, mini = false }) {
   const [saving, setSaving] = useState(false);
+  const [devices, setDevices] = useState([]);
+  const [selectedAddress, setSelectedAddress] = useState("");
+  const [loadingDevices, setLoadingDevices] = useState(true);
+
+  const loadDevices = async () => {
+    setLoadingDevices(true);
+    try {
+      if (Platform.OS === "android" && Number(Platform.Version) >= 31) {
+        await PermissionsAndroid.requestMultiple([
+          PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
+          PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
+        ]);
+      }
+      const foundDevices = await getPrinterDevices();
+      setDevices(foundDevices);
+      const savedPrinter = await AsyncStorage.getItem(PRINTER_KEY);
+      const savedAddress = savedPrinter ? JSON.parse(savedPrinter)?.address : "";
+      setSelectedAddress(foundDevices.some((device) => device.address === savedAddress) ? savedAddress : foundDevices[0]?.address || "");
+    } finally {
+      setLoadingDevices(false);
+    }
+  };
+
+  useEffect(() => {
+    loadDevices();
+  }, []);
 
   const configure = async () => {
+    if (!selectedAddress) {
+      Alert.alert("Printer", "Pè aparèy Bluetooth printer la dabò, epi peze Chèche ankò.");
+      return;
+    }
+
     setSaving(true);
     try {
+      await AsyncStorage.setItem(PRINTER_KEY, JSON.stringify({
+        address: selectedAddress,
+        name: devices.find((device) => device.address === selectedAddress)?.name || "Printer",
+        configuredAt: new Date().toISOString(),
+      }));
+
       await printTicket({
         ticketNumber: "test",
         agent: "test",
@@ -473,12 +584,11 @@ function PrinterSetup({ onComplete, mini = false }) {
         ticketSettings: DEFAULT_TICKET_LAYOUT,
       });
 
-      await AsyncStorage.setItem(PRINTER_KEY, JSON.stringify({ configuredAt: new Date().toISOString() }));
       onComplete();
     } catch (error) {
       Alert.alert(
         "Printer",
-        "Tès enprimant lan pa pase. Aktive Printer Service POS la epi chwazi enprimant entèn lan."
+        "Printer la pa reponn. Verifye li pè ak terminal la epi eseye ankò."
       );
     } finally {
       setSaving(false);
@@ -490,9 +600,19 @@ function PrinterSetup({ onComplete, mini = false }) {
       <Modal visible animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View style={styles.modalInner}>
-            <Text style={styles.section}>Bloutouf / Printer</Text>
-            <Text style={styles.muted}>Fè tès la pou verifye si printer la pare.</Text>
-            <Button label={saving ? "Ap teste..." : "Teste printer"} onPress={configure} disabled={saving} />
+            <Text style={styles.section}>Chwazi printer la</Text>
+            {loadingDevices ? <ActivityIndicator color="#1d4f8f" /> : devices.length ? devices.map((device) => (
+              <Pressable
+                key={device.address}
+                onPress={() => setSelectedAddress(device.address)}
+                style={[styles.choice, selectedAddress === device.address && styles.choiceActive]}
+              >
+                <Text style={styles.choiceText}>{device.name}</Text>
+                <Text style={styles.muted}>{device.address}</Text>
+              </Pressable>
+            )) : <Text style={styles.muted}>Pa gen printer pè. Pè printer la nan paramèt Bluetooth Android yo.</Text>}
+            <Button label="Chèche printer" tone="secondary" onPress={loadDevices} disabled={loadingDevices || saving} />
+            <Button label={saving ? "Ap konekte..." : "Chwazi epi sove"} onPress={configure} disabled={saving || loadingDevices || !selectedAddress} />
             <Button label="Fèmen" tone="ghost" onPress={onComplete} />
           </View>
         </View>
@@ -509,37 +629,103 @@ function PrinterSetup({ onComplete, mini = false }) {
       <Text style={styles.eyebrow}>SPK LOTRI / PRINTER</Text>
       <Text style={styles.hero}>Konekte enprimant lan.</Text>
       <Text style={styles.subtitle}>
-        Aktive printer entèn lan nan Android Print Service sou POS la. Fè yon tès yon sèl fwa pou aplikasyon an verifye koneksyon an.
+        Pè printer entèn lan ak terminal la nan Bluetooth Android, epi chwazi li anba a. App la ap sonje li pou enprime rapid.
       </Text>
       <View style={styles.panel}>
         <Text style={styles.muted}>
-          Aktive sèvis printer POS la nan paramèt Android yo, retounen isit la, epi fè tès la. App la ap mande sa yon sèl fwa sou chak enstalasyon.
+          {loadingDevices ? "Ap chèche printer ki konekte..." : devices.length ? "Chwazi printer ki pou resevwa fich yo." : "Pa gen printer pè. Pè printer la nan paramèt Bluetooth Android yo, epi retounen chèche ankò."}
         </Text>
-        <Button label={saving ? "Ap teste..." : "Teste epi sove printer la"} onPress={configure} disabled={saving} />
-        <Button
-          label="Kontinye san printer pou kounye a"
-          tone="ghost"
-          onPress={async () => {
-            await AsyncStorage.setItem(PRINTER_KEY, JSON.stringify({ skipped: true, configuredAt: new Date().toISOString() }));
-            onComplete();
-          }}
-        />
+        {!loadingDevices && devices.map((device) => (
+          <Pressable
+            key={device.address}
+            onPress={() => setSelectedAddress(device.address)}
+            style={[styles.choice, selectedAddress === device.address && styles.choiceActive]}
+          >
+            <Text style={styles.choiceText}>{device.name}</Text>
+            <Text style={styles.muted}>{device.address}</Text>
+          </Pressable>
+        ))}
+        <Button label="Chèche printer" tone="secondary" onPress={loadDevices} disabled={loadingDevices || saving} />
+        <Button label={saving ? "Ap konekte..." : "Chwazi epi sove printer la"} onPress={configure} disabled={saving || loadingDevices || !selectedAddress} />
       </View>
     </SafeAreaView>
   );
 }
 
-function Home({ session, sales, setSales, draw, setDraw, game, setGame, option, setOption, price, setPrice, onPrint, onMenu }) {
+function Home({ session, sales, setSales, draw, setDraw, game, setGame, option, setOption, price, setPrice, limits, onPrint, onMenu }) {
   const [drawsOpen, setDrawsOpen] = useState(false);
   const [gamesOpen, setGamesOpen] = useState(false);
   const [reverseMode, setReverseMode] = useState(false);
   const [keepPrice, setKeepPrice] = useState(false);
   const [adding, setAdding] = useState(false);
   const [selectedOptions, setSelectedOptions] = useState([1]);
+  const priceInputRef = useRef(null);
 
   const total = useMemo(() => sales.reduce((sum, item) => sum + Number(item.price || 0), 0), [sales]);
   const openDraws = getOpenDraws();
   const isOptionGame = game === "Loto 4 chif" || game === "Loto 5 chif";
+
+  const addAllBoulNumbers = async () => {
+    if (!draw) {
+      Alert.alert("Tiraj", "Chwazi tiraj la anvan.");
+      return;
+    }
+
+    if (!game || game !== "Boul") {
+      Alert.alert("Bòlèt", "Chwazi bòlèt Boul anvan.");
+      return;
+    }
+
+    const amount = Number(price);
+    if (!amount || amount <= 0) {
+      Alert.alert("Pri", "Mete yon pri avan ou ajoute tout boul yo.");
+      return;
+    }
+
+    const entries = BOULE_OPTIONS.map((item, index) => ({
+      id: `${Date.now()}-${Math.random()}-${item}-${index}`,
+      draw,
+      type: game,
+      option: item,
+      price: amount,
+      optionId: 1,
+    }));
+
+    setSales((current) => [...current, ...entries]);
+    setOption("");
+    if (!keepPrice) setPrice("");
+  };
+
+  const addLoto3GrapNumbers = async () => {
+    if (!draw) {
+      Alert.alert("Tiraj", "Chwazi tiraj la anvan.");
+      return;
+    }
+
+    if (!game || game !== "Loto 3 chif") {
+      Alert.alert("Bòlèt", "Chwazi bòlèt Loto 3 chif anvan.");
+      return;
+    }
+
+    const amount = Number(price);
+    if (!amount || amount <= 0) {
+      Alert.alert("Pri", "Mete yon pri avan ou ajoute grap boul pe yo.");
+      return;
+    }
+
+    const entries = LOTO3_GRAP_OPTIONS.map((item, index) => ({
+      id: `${Date.now()}-${Math.random()}-${item}-${index}`,
+      draw,
+      type: game,
+      option: item,
+      price: amount,
+      optionId: 1,
+    }));
+
+    setSales((current) => [...current, ...entries]);
+    setOption("");
+    if (!keepPrice) setPrice("");
+  };
 
   const addEntries = async () => {
     if (adding) return;
@@ -566,12 +752,7 @@ function Home({ session, sales, setSales, draw, setDraw, game, setGame, option, 
     }
 
     const optionIds = isOptionGame ? (selectedOptions.length ? selectedOptions : [1]) : [1];
-    const numbers = [digits];
-
-    if (reverseMode) {
-      const reversed = digits.split("").reverse().join("");
-      if (reversed && reversed !== digits) numbers.push(reversed);
-    }
+    const numbers = buildEntryNumbers(digits, reverseMode, game);
 
     const newEntries = numbers.flatMap((number) =>
       optionIds.map((selectedOption) => ({
@@ -586,6 +767,27 @@ function Home({ session, sales, setSales, draw, setDraw, game, setGame, option, 
 
     setAdding(true);
     try {
+      for (const entry of numbers) {
+        const limit = getConfiguredLimit(limits, draw, game, entry, session.uid);
+        if (limit !== null) {
+          const currentUsage = await getLimitUsage({
+            game,
+            option: entry,
+            draw,
+            agentUid: session.uid,
+            date: today(),
+          });
+
+          if (currentUsage + newEntries.filter((item) => item.option === entry).length > limit) {
+            Alert.alert(
+              "Limit boul",
+              `Boul ${entry} pou tiraj ${draw} rive nan limit la (${limit}). Fich la pa anrejistre.`
+            );
+            return;
+          }
+        }
+      }
+
       setSales((current) => [...current, ...newEntries]);
       setOption("");
       if (!keepPrice) setPrice("");
@@ -622,18 +824,21 @@ function Home({ session, sales, setSales, draw, setDraw, game, setGame, option, 
           <View style={styles.panel}>
             <Text style={styles.section}>Chwazi tiraj</Text>
             <View style={styles.chips}>
-              {openDraws.map((item) => (
-                <Pressable
-                  key={item}
-                  onPress={() => {
-                    setDraw(item);
-                    setDrawsOpen(false);
-                  }}
-                  style={[styles.chip, draw === item && styles.chipActive]}
-                >
-                  <Text style={styles.chipText}>{item}</Text>
-                </Pressable>
-              ))}
+              {DRAWS.map((item) => {
+                const isOpen = isDrawOpen(item);
+                return (
+                  <Pressable
+                    key={item}
+                    onPress={() => {
+                      setDraw(item);
+                      setDrawsOpen(false);
+                    }}
+                    style={[styles.chip, draw === item && styles.chipActive]}
+                  >
+                    <Text style={styles.chipText}>{item}{isOpen ? " · ouvè" : " · fèmen"}</Text>
+                  </Pressable>
+                );
+              })}
             </View>
           </View>
         )}
@@ -701,19 +906,30 @@ function Home({ session, sales, setSales, draw, setDraw, game, setGame, option, 
               placeholder="Boul"
               placeholderTextColor="#8993a5"
               keyboardType="numeric"
+              returnKeyType="next"
+              onSubmitEditing={() => priceInputRef.current?.focus()}
               style={[styles.input, styles.numberInput]}
             />
             <TextInput
+              ref={priceInputRef}
               value={price}
               onChangeText={setPrice}
               placeholder="Pri"
               placeholderTextColor="#8993a5"
               keyboardType="numeric"
+              returnKeyType="done"
+              onSubmitEditing={addEntries}
               style={[styles.input, styles.priceInput]}
             />
           </View>
 
           <Button label={adding ? "Ap ajoute..." : "Ajoute sou fich"} onPress={addEntries} disabled={adding} style={styles.addButton} />
+          {game === "Boul" && (
+            <Button label="10 boul pe (11,22,33,44,55,66,77,88,99,00)" tone="secondary" onPress={addAllBoulNumbers} style={styles.addButton} />
+          )}
+          {game === "Loto 3 chif" && (
+            <Button label="Grap boul pe (111,222,333,444,555,666,777,888,999,000)" tone="secondary" onPress={addLoto3GrapNumbers} style={styles.addButton} />
+          )}
         </View>
 
         {sales.length > 0 && (
@@ -775,7 +991,7 @@ function Menu({ visible, onClose, onSelect, onLogout }) {
   );
 }
 
-function Report({ visible, onClose, tickets, transactions, title, range = false, session }) {
+function Report({ visible, onClose, tickets, transactions, title, range = false, session, onPrintReport }) {
   const [startDate, setStartDate] = useState(today());
   const [endDate, setEndDate] = useState(today());
 
@@ -827,6 +1043,21 @@ function Report({ visible, onClose, tickets, transactions, title, range = false,
         <Text style={styles.reportLine}>Peye <Text style={styles.reportValue}>{money(paid)}</Text></Text>
         <Text style={styles.reportLine}>Benefis <Text style={styles.reportValue}>{money(sales - paid - commission)}</Text></Text>
       </View>
+
+      <Button
+        label="Enprime rapò"
+        tone="secondary"
+        onPress={() =>
+          onPrintReport({
+            startDate,
+            endDate,
+            salesTotal: sales,
+            commission,
+            paid,
+            profit: sales - paid - commission,
+          })
+        }
+      />
 
       <Text style={styles.section}>Fich yo ({groupedTickets.length})</Text>
       {groupedTickets.map((item) => (
@@ -1077,9 +1308,9 @@ const styles = StyleSheet.create({
   addButton: { width: "100%", marginTop: 14, minHeight: 52 },
   button: { minHeight: 46, paddingHorizontal: 16, borderRadius: 8, alignItems: "center", justifyContent: "center", marginTop: 10 },
   buttonCompact: { minHeight: 38, paddingHorizontal: 12, marginTop: 0 },
-  button_primary: { backgroundColor: "#1d4f8f" },
-  button_secondary: { backgroundColor: "#eaf2ff", borderWidth: 1, borderColor: "#1d4f8f" },
-  button_ghost: { backgroundColor: "transparent", borderWidth: 1, borderColor: "#1d4f8f" },
+  button_primary: { backgroundColor: "#0f2348" },
+  button_secondary: { backgroundColor: "#edf5ff", borderWidth: 1, borderColor: "#1d4f8f" },
+  button_ghost: { backgroundColor: "#ffffff", borderWidth: 1, borderColor: "#d8e3f6" },
   button_danger: { backgroundColor: "#b83d46" },
   buttonText: { color: "#fff", fontWeight: "800" },
   buttonAltText: { color: "#1d4f8f", fontWeight: "800" },
