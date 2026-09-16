@@ -8,7 +8,6 @@
     "userInterfaceStyle": "light",
     "plugins": [
       "expo-camera",
-      "expo-image-picker",
       [
         "expo-build-properties",
         {
@@ -30,14 +29,16 @@
         "android.permission.BLUETOOTH",
         "android.permission.BLUETOOTH_ADMIN",
         "android.permission.BLUETOOTH_CONNECT",
-        "android.permission.BLUETOOTH_SCAN"
+        "android.permission.BLUETOOTH_SCAN",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION"
       ]
     },
-    "owner": "lotri-vande",
     "extra": {
       "eas": {
-        "projectId": "39cf2b41-4d40-4826-8a94-b0bf16df9d3b"
+        "projectId": "b9ef0c92-1f10-4644-8dec-22648bdcde11"
       }
-    }
+    },
+    "owner": "parcot"
   }
 }

@@ -19,7 +19,6 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { StatusBar } from "expo-status-bar";
 import { CameraView, useCameraPermissions } from "expo-camera";
-import * as ImagePicker from "expo-image-picker";
 import {
   getOpenDraws,
   validateOption,
@@ -548,12 +547,20 @@ function PrinterSetup({ onComplete, mini = false }) {
           PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
           PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
         ]);
+      } else if (Platform.OS === "android") {
+        await PermissionsAndroid.requestMultiple([
+          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+          PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION,
+        ]);
       }
       const foundDevices = await getPrinterDevices();
       setDevices(foundDevices);
       const savedPrinter = await AsyncStorage.getItem(PRINTER_KEY);
       const savedAddress = savedPrinter ? JSON.parse(savedPrinter)?.address : "";
-      setSelectedAddress(foundDevices.some((device) => device.address === savedAddress) ? savedAddress : foundDevices[0]?.address || "");
+      const preferredDevice = foundDevices.find((device) => device.address === savedAddress)
+        || foundDevices.find((device) => String(device.name || "").trim().toLowerCase() === "enpresyon")
+        || foundDevices[0];
+      setSelectedAddress(preferredDevice?.address || "");
     } finally {
       setLoadingDevices(false);
     }
@@ -614,7 +621,7 @@ function PrinterSetup({ onComplete, mini = false }) {
                 <Text style={styles.choiceText}>{device.name}</Text>
                 <Text style={styles.muted}>{device.address}</Text>
               </Pressable>
-            )) : <Text style={styles.muted}>Pa gen printer pè. Pè printer la nan paramèt Bluetooth Android yo.</Text>}
+            )) : <Text style={styles.muted}>Pa gen printer pè oswa pèmisyon Bluetooth/Location lan poko aksepte. Verifye aparèy `enpresyon` an nan paramèt Bluetooth Android yo, aksepte pèmisyon yo, epi peze Chèche ankò.</Text>}
             <Button label="Chèche printer" tone="secondary" onPress={loadDevices} disabled={loadingDevices || saving} />
             <Button label={saving ? "Ap konekte..." : "Chwazi epi sove"} onPress={configure} disabled={saving || loadingDevices || !selectedAddress} />
             <Button label="Fèmen" tone="ghost" onPress={onComplete} />
@@ -637,7 +644,7 @@ function PrinterSetup({ onComplete, mini = false }) {
       </Text>
       <View style={styles.panel}>
         <Text style={styles.muted}>
-          {loadingDevices ? "Ap chèche printer ki konekte..." : devices.length ? "Chwazi printer ki pou resevwa fich yo." : "Pa gen printer pè. Pè printer la nan paramèt Bluetooth Android yo, epi retounen chèche ankò."}
+          {loadingDevices ? "Ap chèche printer ki konekte..." : devices.length ? "Chwazi printer ki pou resevwa fich yo." : "Pa gen printer pè oswa pèmisyon Bluetooth/Location lan poko aksepte. Verifye aparèy enpresyon an nan paramèt Bluetooth Android yo, epi peze Chèche ankò."}
         </Text>
         {!loadingDevices && devices.map((device) => (
           <Pressable

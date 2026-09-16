@@ -51,7 +51,11 @@ export const getPrinterDevices = async () => {
   try {
     if (!PrinterModule?.getPrinterState) return [];
     const state = await PrinterModule.getPrinterState();
-    return state?.devices || [];
+    return (state?.devices || []).sort((first, second) => {
+      const firstIsInternal = String(first.name || '').trim().toLowerCase() === 'enpresyon';
+      const secondIsInternal = String(second.name || '').trim().toLowerCase() === 'enpresyon';
+      return Number(secondIsInternal) - Number(firstIsInternal);
+    });
   } catch (error) {
     return [];
   }
