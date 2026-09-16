@@ -50,6 +50,7 @@ import { getPrinterDevices, printTicket } from "./printerService";
 
 const SESSION_KEY = "@spk-lotri-vande/session";
 const PRINTER_KEY = "@spk-lotri-vande/printer-config";
+const PRINTER_SETUP_KEY = "@spk-lotri-vande/printer-setup-complete";
 const TICKET_LAYOUT_KEY = "@spk-lotri-vande/ticket-layout";
 const DEFAULT_TICKET_LAYOUT = {
   lotteryName: "SPK LOTRI",
@@ -122,9 +123,10 @@ function App() {
   useEffect(() => {
     (async () => {
       try {
-        const [storedSession, savedPrinter, savedLayout] = await Promise.all([
+        const [storedSession, savedPrinter, setupComplete, savedLayout] = await Promise.all([
           AsyncStorage.getItem(SESSION_KEY),
           AsyncStorage.getItem(PRINTER_KEY),
+          AsyncStorage.getItem(PRINTER_SETUP_KEY),
           AsyncStorage.getItem(TICKET_LAYOUT_KEY),
         ]);
 
@@ -132,7 +134,8 @@ function App() {
           setSession(JSON.parse(storedSession));
         }
 
-        setPrinterConfigured(Boolean(savedPrinter && JSON.parse(savedPrinter)?.address));
+        const hasSavedPrinter = Boolean(savedPrinter && JSON.parse(savedPrinter)?.address);
+        setPrinterConfigured(hasSavedPrinter || setupComplete === "true");
         if (savedLayout) {
           setTicketLayout({ ...DEFAULT_TICKET_LAYOUT, ...JSON.parse(savedLayout) });
         }
@@ -573,6 +576,7 @@ function PrinterSetup({ onComplete, mini = false }) {
         name: devices.find((device) => device.address === selectedAddress)?.name || "Printer",
         configuredAt: new Date().toISOString(),
       }));
+      await AsyncStorage.setItem(PRINTER_SETUP_KEY, "true");
 
       await printTicket({
         ticketNumber: "test",

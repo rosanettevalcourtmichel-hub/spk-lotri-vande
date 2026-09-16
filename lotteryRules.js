@@ -32,6 +32,93 @@ const normalizeResult = (result = {}) => ({
   thirdLot3: normalizeDigits(result.thirdLot3),
 });
 
+const buildDistinctPermutations = (value = "") => {
+  const digits = normalizeDigits(value);
+  if (!digits || digits.length !== 4) return [];
+
+  const unique = new Set();
+  const chars = digits.split("");
+
+  const permute = (items, current = []) => {
+    if (current.length === items.length) {
+      unique.add(current.join(""));
+      return;
+    }
+
+    for (let index = 0; index < items.length; index += 1) {
+      if (items[index] === "__USED__") continue;
+
+      const nextItems = [...items];
+      nextItems[index] = "__USED__";
+      permute(nextItems, [...current, items[index]]);
+    }
+  };
+
+  permute(chars);
+  return Array.from(unique);
+};
+
+const buildLoto4WinningNumbers = (result = {}) => {
+  const candidates = new Set();
+  const extras = [
+    result.firstLot3,
+    result.firstLot2,
+    result.secondLot2,
+    result.thirdLot2,
+    result.thirdLot3,
+  ].filter(Boolean);
+
+  extras.forEach((item) => {
+    const digits = normalizeDigits(item);
+    if (digits.length === 4) {
+      candidates.add(digits);
+    }
+  });
+
+  [
+    `${result.firstLot2 || ""}${result.secondLot2 || ""}`,
+    `${result.firstLot2 || ""}${result.thirdLot2 || ""}`,
+    `${result.secondLot2 || ""}${result.thirdLot2 || ""}`,
+  ].forEach((combo) => {
+    const digits = normalizeDigits(combo);
+    if (digits.length === 4) {
+      candidates.add(digits);
+    }
+  });
+
+  const winningNumbers = new Set();
+  candidates.forEach((candidate) => {
+    buildDistinctPermutations(candidate).forEach((value) => winningNumbers.add(value));
+  });
+
+  return Array.from(winningNumbers);
+};
+
+const buildMaryajWinningNumbers = (result = {}) => {
+  const segments = [
+    normalizeDigits(result.firstLot2),
+    normalizeDigits(result.secondLot2),
+    normalizeDigits(result.thirdLot2),
+  ].filter((item) => item && item.length === 2);
+
+  const winningNumbers = new Set();
+
+  for (let i = 0; i < segments.length; i += 1) {
+    for (let j = i + 1; j < segments.length; j += 1) {
+      const pairA = [segments[i], segments[i].split("").reverse().join("")];
+      const pairB = [segments[j], segments[j].split("").reverse().join("")];
+
+      pairA.forEach((firstPart) => {
+        pairB.forEach((secondPart) => {
+          winningNumbers.add(`${firstPart}${secondPart}`);
+        });
+      });
+    }
+  }
+
+  return Array.from(winningNumbers);
+};
+
 export const validateOption = (game, value) => {
   const digits = normalizeDigits(value);
 
@@ -120,23 +207,22 @@ export const calculateTicketPayout = (ticket = {}, result = {}) => {
   }
 
   if (game === "Loto 4 chif") {
-    const combos = {
-      1: `${draw.firstLot2}${draw.secondLot2}`,
-      2: `${draw.firstLot2}${draw.thirdLot2}`,
-      3: `${draw.secondLot2}${draw.thirdLot2}`,
-    };
+    const optionDigits = normalizeDigits(option);
+    if (optionDigits.length !== 4) return fallback;
 
-    const expected = combos[selectedOption] || combos[1];
-    if (option !== expected) return fallback;
+    const winningNumbers = buildLoto4WinningNumbers(draw);
+    const isWinner = winningNumbers.includes(optionDigits);
+
+    if (!isWinner) return fallback;
 
     return {
       ...fallback,
       isWinner: true,
-      payout: price * 1000,
-      multiplier: 1000,
-      rule: `Opsyon ${selectedOption}`,
-      matchedValue: expected,
-      detail: "Match Loto 4 chif",
+      payout: price * 8,
+      multiplier: 8,
+      rule: `Loto 4 · revèy`,
+      matchedValue: optionDigits,
+      detail: "Match Loto 4 chif (tout permutasyon yo)",
     };
   }
 
@@ -169,24 +255,22 @@ export const calculateTicketPayout = (ticket = {}, result = {}) => {
   }
 
   if (game === "Maryaj") {
-    const combos = {
-      1: `${draw.firstLot2}${draw.secondLot2}`,
-      2: `${draw.firstLot2}${draw.thirdLot2}`,
-      3: `${draw.secondLot2}${draw.thirdLot2}`,
-    };
+    const optionDigits = normalizeDigits(option);
+    if (optionDigits.length !== 4) return fallback;
 
-    const expected = combos[selectedOption] || combos[1];
+    const winningNumbers = buildMaryajWinningNumbers(draw);
+    const isWinner = winningNumbers.includes(optionDigits);
 
-    if (option !== expected) return fallback;
+    if (!isWinner) return fallback;
 
     return {
       ...fallback,
       isWinner: true,
       payout: price * 1000,
       multiplier: 1000,
-      rule: `Maryaj Opsyon ${selectedOption}`,
-      matchedValue: expected,
-      detail: "Match maryaj",
+      rule: "Maryaj · 4 revèy",
+      matchedValue: optionDigits,
+      detail: "Match maryaj (4 kombinaison valid yo)",
     };
   }
 
