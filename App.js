@@ -557,9 +557,7 @@ function PrinterSetup({ onComplete, mini = false }) {
       setDevices(foundDevices);
       const savedPrinter = await AsyncStorage.getItem(PRINTER_KEY);
       const savedAddress = savedPrinter ? JSON.parse(savedPrinter)?.address : "";
-      const preferredDevice = foundDevices.find((device) => device.address === savedAddress)
-        || foundDevices.find((device) => String(device.name || "").trim().toLowerCase() === "enpresyon")
-        || foundDevices[0];
+      const preferredDevice = foundDevices.find((device) => device.address === savedAddress);
       setSelectedAddress(preferredDevice?.address || "");
     } finally {
       setLoadingDevices(false);
@@ -621,7 +619,7 @@ function PrinterSetup({ onComplete, mini = false }) {
                 <Text style={styles.choiceText}>{device.name}</Text>
                 <Text style={styles.muted}>{device.address}</Text>
               </Pressable>
-            )) : <Text style={styles.muted}>Pa gen printer pè oswa pèmisyon Bluetooth/Location lan poko aksepte. Verifye aparèy `enpresyon` an nan paramèt Bluetooth Android yo, aksepte pèmisyon yo, epi peze Chèche ankò.</Text>}
+            )) : <Text style={styles.muted}>Pa gen printer pè oswa pèmisyon Bluetooth/Location lan poko aksepte. Pè aparèy la nan paramèt Bluetooth Android yo, aksepte pèmisyon yo, epi peze Chèche ankò.</Text>}
             <Button label="Chèche printer" tone="secondary" onPress={loadDevices} disabled={loadingDevices || saving} />
             <Button label={saving ? "Ap konekte..." : "Chwazi epi sove"} onPress={configure} disabled={saving || loadingDevices || !selectedAddress} />
             <Button label="Fèmen" tone="ghost" onPress={onComplete} />
@@ -644,7 +642,7 @@ function PrinterSetup({ onComplete, mini = false }) {
       </Text>
       <View style={styles.panel}>
         <Text style={styles.muted}>
-          {loadingDevices ? "Ap chèche printer ki konekte..." : devices.length ? "Chwazi printer ki pou resevwa fich yo." : "Pa gen printer pè oswa pèmisyon Bluetooth/Location lan poko aksepte. Verifye aparèy enpresyon an nan paramèt Bluetooth Android yo, epi peze Chèche ankò."}
+          {loadingDevices ? "Ap chèche printer ki konekte..." : devices.length ? "Chwazi printer ki pou resevwa fich yo." : "Pa gen printer pè oswa pèmisyon Bluetooth/Location lan poko aksepte. Pè aparèy la nan paramèt Bluetooth Android yo, epi peze Chèche ankò."}
         </Text>
         {!loadingDevices && devices.map((device) => (
           <Pressable
