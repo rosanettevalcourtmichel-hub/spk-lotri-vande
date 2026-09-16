@@ -35,7 +35,7 @@ export const printTicket = async ({ ticketNumber, agent, director, draw, entries
     if (PrinterModule?.getPrinterState) {
       const state = await PrinterModule.getPrinterState();
       const selectedPrinter = (state?.devices || []).find((device) => device.address === printerConfig.address);
-      if (!state?.enabled || !selectedPrinter) {
+      if (!state?.enabled || state?.permissionGranted === false || !selectedPrinter) {
         return false;
       }
     }
@@ -51,6 +51,7 @@ export const getPrinterDevices = async () => {
   try {
     if (!PrinterModule?.getPrinterState) return [];
     const state = await PrinterModule.getPrinterState();
+    if (!state?.enabled || state?.permissionGranted === false) return [];
     return state?.devices || [];
   } catch (error) {
     return [];

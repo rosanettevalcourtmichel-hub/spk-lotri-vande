@@ -543,15 +543,21 @@ function PrinterSetup({ onComplete, mini = false }) {
     setLoadingDevices(true);
     try {
       if (Platform.OS === "android" && Number(Platform.Version) >= 31) {
-        await PermissionsAndroid.requestMultiple([
+        const permissions = await PermissionsAndroid.requestMultiple([
           PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
           PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
         ]);
+        if (Object.values(permissions).some((value) => value !== PermissionsAndroid.RESULTS.GRANTED)) {
+          Alert.alert("Bluetooth", "Aksepte pèmisyon Bluetooth yo pou app la ka wè aparèy paired yo.");
+        }
       } else if (Platform.OS === "android") {
-        await PermissionsAndroid.requestMultiple([
+        const permissions = await PermissionsAndroid.requestMultiple([
           PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
           PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION,
         ]);
+        if (Object.values(permissions).some((value) => value !== PermissionsAndroid.RESULTS.GRANTED)) {
+          Alert.alert("Bluetooth", "Aksepte pèmisyon Location la pou app la ka wè aparèy paired yo.");
+        }
       }
       const foundDevices = await getPrinterDevices();
       setDevices(foundDevices);

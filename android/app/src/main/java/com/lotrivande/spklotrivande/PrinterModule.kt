@@ -49,22 +49,32 @@ class PrinterModule(private val reactContext: ReactApplicationContext) : ReactCo
     var lastError: Exception? = null
 
     for (uuid in serialUuids) {
+      var socket: android.bluetooth.BluetoothSocket? = null
       try {
-        val socket = device.createRfcommSocketToServiceRecord(uuid)
+        socket = device.createRfcommSocketToServiceRecord(uuid)
         socket.connect()
         return socket
       } catch (error: Exception) {
         lastError = error
+        try {
+          socket?.close()
+        } catch (_: Exception) {
+        }
       }
     }
 
+    var insecureSocket: android.bluetooth.BluetoothSocket? = null
     try {
       val insecureMethod = device.javaClass.getMethod("createRfcommSocket", Int::class.javaPrimitiveType!!)
-      val socket = insecureMethod.invoke(device, 1) as android.bluetooth.BluetoothSocket
-      socket.connect()
-      return socket
+      insecureSocket = insecureMethod.invoke(device, 1) as android.bluetooth.BluetoothSocket
+      insecureSocket.connect()
+      return insecureSocket
     } catch (error: Exception) {
       lastError = error
+      try {
+        insecureSocket?.close()
+      } catch (_: Exception) {
+      }
     }
 
     throw lastError ?: IllegalStateException("Printer Bluetooth socket unavailable")
