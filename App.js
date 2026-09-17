@@ -538,9 +538,11 @@ function PrinterSetup({ onComplete, mini = false }) {
   const [devices, setDevices] = useState([]);
   const [selectedAddress, setSelectedAddress] = useState("");
   const [loadingDevices, setLoadingDevices] = useState(true);
+  const [scanMessage, setScanMessage] = useState("Ap prepare rechèch Bluetooth la...");
 
   const loadDevices = async () => {
     setLoadingDevices(true);
+    setScanMessage("Ap mande pèmisyon epi chèche tout aparèy paired yo...");
     try {
       if (Platform.OS === "android" && Number(Platform.Version) >= 31) {
         const permissions = await PermissionsAndroid.requestMultiple([
@@ -549,6 +551,7 @@ function PrinterSetup({ onComplete, mini = false }) {
         ]);
         if (Object.values(permissions).some((value) => value !== PermissionsAndroid.RESULTS.GRANTED)) {
           Alert.alert("Bluetooth", "Aksepte pèmisyon Bluetooth yo pou app la ka wè aparèy paired yo.");
+          setScanMessage("Pèmisyon Bluetooth yo nesesè pou montre printer paired yo.");
         }
       } else if (Platform.OS === "android") {
         const permissions = await PermissionsAndroid.requestMultiple([
@@ -557,10 +560,12 @@ function PrinterSetup({ onComplete, mini = false }) {
         ]);
         if (Object.values(permissions).some((value) => value !== PermissionsAndroid.RESULTS.GRANTED)) {
           Alert.alert("Bluetooth", "Aksepte pèmisyon Location la pou app la ka wè aparèy paired yo.");
+          setScanMessage("Pèmisyon Location la nesesè sou Android sa a pou rechèch Bluetooth la.");
         }
       }
       const foundDevices = await getPrinterDevices();
       setDevices(foundDevices);
+      setScanMessage(foundDevices.length ? "Chwazi printer ki pou resevwa fich yo." : "Pa gen aparèy paired ki disponib kounye a.");
       const savedPrinter = await AsyncStorage.getItem(PRINTER_KEY);
       const savedAddress = savedPrinter ? JSON.parse(savedPrinter)?.address : "";
       const preferredDevice = foundDevices.find((device) => device.address === savedAddress);
@@ -648,7 +653,7 @@ function PrinterSetup({ onComplete, mini = false }) {
       </Text>
       <View style={styles.panel}>
         <Text style={styles.muted}>
-          {loadingDevices ? "Ap chèche printer ki konekte..." : devices.length ? "Chwazi printer ki pou resevwa fich yo." : "Pa gen printer pè oswa pèmisyon Bluetooth/Location lan poko aksepte. Pè aparèy la nan paramèt Bluetooth Android yo, epi peze Chèche ankò."}
+          {scanMessage}
         </Text>
         {!loadingDevices && devices.map((device) => (
           <Pressable
