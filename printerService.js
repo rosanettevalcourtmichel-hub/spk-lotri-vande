@@ -68,3 +68,17 @@ export const testPrinter = async () => {
     return false;
   }
 };
+
+export const printPrinterTest = async (address) => {
+  try {
+    if (!address || !PrinterModule?.printText) return false;
+
+    const state = await PrinterModule.getPrinterState();
+    const selectedPrinter = (state?.devices || []).find((device) => device.address === address);
+    if (!state?.enabled || state?.permissionGranted === false || !selectedPrinter) return false;
+
+    return Boolean(await PrinterModule.printText('SPK LOTRI\nTÈS PRINTER\n\n', address));
+  } catch (error) {
+    return false;
+  }
+};

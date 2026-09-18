@@ -45,7 +45,7 @@ import {
   getAgentStatus,
   updateAgentPresence,
 } from "./firebaseService";
-import { getPrinterDevices, printTicket } from "./printerService";
+import { getPrinterDevices, printPrinterTest, printTicket } from "./printerService";
 
 const SESSION_KEY = "@spk-lotri-vande/session";
 const PRINTER_KEY = "@spk-lotri-vande/printer-config";
@@ -537,6 +537,7 @@ function PrinterSetup({ onComplete, mini = false }) {
   const [saving, setSaving] = useState(false);
   const [devices, setDevices] = useState([]);
   const [selectedAddress, setSelectedAddress] = useState("");
+  const [testedAddress, setTestedAddress] = useState("");
   const [loadingDevices, setLoadingDevices] = useState(true);
   const [scanMessage, setScanMessage] = useState("Ap prepare rechèch Bluetooth la...");
 
@@ -565,11 +566,14 @@ function PrinterSetup({ onComplete, mini = false }) {
       }
       const foundDevices = await getPrinterDevices();
       setDevices(foundDevices);
-      setScanMessage(foundDevices.length ? "Chwazi printer ki pou resevwa fich yo." : "Pa gen aparèy paired ki disponib kounye a.");
+      setScanMessage(foundDevices.length
+        ? "Chwazi printer ki pou resevwa fich yo."
+        : "Pa gen printer Bluetooth paired ki parèt. Enprimant entèn POS la ka bezwen SDK manifakti a.");
       const savedPrinter = await AsyncStorage.getItem(PRINTER_KEY);
       const savedAddress = savedPrinter ? JSON.parse(savedPrinter)?.address : "";
       const preferredDevice = foundDevices.find((device) => device.address === savedAddress);
       setSelectedAddress(preferredDevice?.address || "");
+      setTestedAddress("");
     } finally {
       setLoadingDevices(false);
     }
@@ -579,9 +583,31 @@ function PrinterSetup({ onComplete, mini = false }) {
     loadDevices();
   }, []);
 
-  const configure = async () => {
+  const testSelectedPrinter = async () => {
     if (!selectedAddress) {
-      Alert.alert("Printer", "Pè aparèy Bluetooth printer la dabò, epi peze Chèche ankò.");
+      Alert.alert("Printer", "Chwazi yon printer anvan ou teste li.");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const printed = await printPrinterTest(selectedAddress);
+      if (!printed) {
+        Alert.alert("Printer", "Tès la pa soti. Verifye printer la limen, paired, epi pare pou enprime.");
+        setTestedAddress("");
+        return;
+      }
+
+      setTestedAddress(selectedAddress);
+      Alert.alert("Printer", "Ti papye tès la soti. Printer la pare.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const configure = async () => {
+    if (!selectedAddress || testedAddress !== selectedAddress) {
+      Alert.alert("Printer", "Peze Teste printer epi verifye ti papye a soti anvan ou sove.");
       return;
     }
 
@@ -593,16 +619,6 @@ function PrinterSetup({ onComplete, mini = false }) {
         configuredAt: new Date().toISOString(),
       }));
       await AsyncStorage.setItem(PRINTER_SETUP_KEY, "true");
-
-      await printTicket({
-        ticketNumber: "test",
-        agent: "test",
-        director: "",
-        draw: DRAWS[0] || "",
-        entries: [],
-        total: 0,
-        ticketSettings: DEFAULT_TICKET_LAYOUT,
-      });
 
       onComplete();
     } catch (error) {
@@ -630,9 +646,14 @@ function PrinterSetup({ onComplete, mini = false }) {
                 <Text style={styles.choiceText}>{device.name}</Text>
                 <Text style={styles.muted}>{device.address}</Text>
               </Pressable>
-            )) : <Text style={styles.muted}>Pa gen printer pè oswa pèmisyon Bluetooth/Location lan poko aksepte. Pè aparèy la nan paramèt Bluetooth Android yo, aksepte pèmisyon yo, epi peze Chèche ankò.</Text>}
+            )) : <Text style={styles.muted}>Pa gen printer Bluetooth paired ki parèt. Si se enprimant entèn POS la, li ka pa ekspoze kòm Bluetooth; aplikasyon an bezwen SDK manifakti a pou kontwole li.</Text>}
             <Button label="Chèche printer" tone="secondary" onPress={loadDevices} disabled={loadingDevices || saving} />
-            <Button label={saving ? "Ap konekte..." : "Chwazi epi sove"} onPress={configure} disabled={saving || loadingDevices || !selectedAddress} />
+            <Button label={saving ? "Ap teste..." : "Teste printer"} tone="secondary" onPress={testSelectedPrinter} disabled={saving || loadingDevices || !selectedAddress} />
+            <Button label="Sove printer la" onPress={configure} disabled={saving || loadingDevices || testedAddress !== selectedAddress} />
+            <Button label="Kontinye san printer" tone="ghost" onPress={async () => {
+              await AsyncStorage.setItem(PRINTER_SETUP_KEY, "true");
+              onComplete();
+            }} disabled={loadingDevices || saving} />
             <Button label="Fèmen" tone="ghost" onPress={onComplete} />
           </View>
         </View>
@@ -666,7 +687,12 @@ function PrinterSetup({ onComplete, mini = false }) {
           </Pressable>
         ))}
         <Button label="Chèche printer" tone="secondary" onPress={loadDevices} disabled={loadingDevices || saving} />
-        <Button label={saving ? "Ap konekte..." : "Chwazi epi sove printer la"} onPress={configure} disabled={saving || loadingDevices || !selectedAddress} />
+        <Button label={saving ? "Ap teste..." : "Teste printer"} tone="secondary" onPress={testSelectedPrinter} disabled={saving || loadingDevices || !selectedAddress} />
+        <Button label="Sove printer la" onPress={configure} disabled={saving || loadingDevices || testedAddress !== selectedAddress} />
+        <Button label="Kontinye san printer" tone="ghost" onPress={async () => {
+          await AsyncStorage.setItem(PRINTER_SETUP_KEY, "true");
+          onComplete();
+        }} disabled={loadingDevices || saving} />
       </View>
     </SafeAreaView>
   );
